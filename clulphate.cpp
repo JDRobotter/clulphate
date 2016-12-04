@@ -2,6 +2,7 @@
 #include <memory>
 #include <GLFW/glfw3.h>
 #include <math.h>
+#include <CL/cl.hpp>
 
 void glfw_error_callback(int error, const char *description) {
   std::cerr<<"GLFW ("<<error<<"): "<<description<<"\n";
@@ -16,6 +17,34 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 
 int main(int argc, char **argv) {
 
+  // __ OpenCL __
+  // initializing OpenCL
+  std::vector<cl::Platform> all_platforms;
+  cl::Platform::get(&all_platforms);
+  if(all_platforms.size() == 0) {
+    std::cout<<"No OpenCL platform found\n";
+    return 255;
+  }
+  // use first platform
+  auto platform = all_platforms[0];
+  std::vector<cl::Device> all_devices;
+  platform.getDevices(CL_DEVICE_TYPE_ALL, &all_devices);
+  if(all_devices.size() == 0) {
+    std::cout<<"No OpenCL devices found\n";
+    return 255;
+  }
+  auto device = all_devices[0];
+
+  std::cout<<"[+] Using "
+    <<platform.getInfo<CL_PLATFORM_NAME>()
+    <<" : "<<device.getInfo<CL_DEVICE_NAME>()
+    <<"\n";
+
+  // create an openCL context
+  cl::Context clctx(all_devices, NULL, NULL, NULL, NULL);
+
+  // __ OpenGL __
+  // initializing GLFW 
   if(!glfwInit()) {
     std::cout<<"Initialization failed\n";
     return 255;
@@ -29,11 +58,10 @@ int main(int argc, char **argv) {
     std::cout<<"Window creation failed\n";
     return 255;
   }
-
+  
   glfwMakeContextCurrent(window);
   glfwSetKeyCallback(window, key_callback);
   glfwSwapInterval(1);
-
   int width,height;
   glfwGetFramebufferSize(window, &width, &height);
 
