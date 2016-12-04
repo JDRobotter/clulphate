@@ -49,32 +49,53 @@ int main(int argc, char **argv) {
     std::cerr<<program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
   }
 
-  try {
-    // load kernel from source
-    cl::Kernel kernel(program, "dp_add1");
+  // load kernel from source
+  cl::Kernel kernel(program, "dp_add1");
 
-    const int N = 100;
-    float data[N] = {0};
-    cl::Buffer buffer(CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR, N*sizeof(float), data);
+  const int N = 30;
+  const int SZ = N*N;
 
-    kernel.setArg(0,buffer);
-    
-    // execute kernel
-    cl::NDRange global_work_size(100);
-    
-    queue.enqueueNDRangeKernel(kernel, cl::NullRange, global_work_size, cl::NullRange);
-    queue.enqueueReadBuffer(buffer, CL_TRUE, 0, N*sizeof(float), data);
+  float input[SZ] = {0};
+  for(int i=0;i<SZ;i++) {
+    if( (i > (N-3)*N) && (i < (N-2)*N) ) {
+      input[i] = 10;
+    }
+    else{
+      input[i] = 0;
+    }
+  }
+
+  float output[SZ] = {0};
+  cl::Buffer buffer_in(context, CL_MEM_READ_WRITE, SZ*sizeof(float));
+  cl::Buffer buffer_out(context, CL_MEM_READ_WRITE, SZ*sizeof(float));
+
+  // execute kernel
+  cl::NDRange global_work_size(SZ);
+  
+  // copy from local memory to buffer
+  queue.enqueueWriteBuffer(buffer_in, CL_TRUE, 0, SZ*sizeof(float), input);
+
+  for(int z=0;z<10;z++) {
+    kernel.setArg(0,buffer_in);
+    kernel.setArg(1,buffer_out);
+    rv = queue.enqueueNDRangeKernel(kernel, cl::NullRange, global_work_size, cl::NullRange);
+    if(rv != CL_SUCCESS) {
+      std::cerr<<"ERROR"<<rv<<"\n";
+    }
+    queue.enqueueReadBuffer(buffer_out, CL_TRUE, 0, SZ*sizeof(float), output);
+    queue.enqueueCopyBuffer(buffer_out, buffer_in, 0, 0, SZ*sizeof(float));
     // wait for completion
     queue.finish();
-  }
-  catch(cl::Error &er) {
-    std::cerr<<"ERROR: "<<er.what()<<" : "<<err.er();
-  }
 
-  for(float v: data) {
-    std::cout<<" "<<v;
+    for(int j=0; j<N; j++) {
+      for(int i=0; i<N; i++) {
+        int k = i+j*N;
+        std::cout<<" "<<(int)(output[k]);
+      }
+      std::cout<<"\n";
+    }
+    std::cout<<"\n";
   }
-  std::cout<<"\n";
 
   return 0;
 }
